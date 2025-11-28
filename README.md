@@ -16,48 +16,57 @@ sparse where virtually all detectors have 0 events.
 
 -----------------------------
 
-Feed into the script N reviews ( > 2 * N_PARAMS^2 ).  It then runs
-N_TRIALS over the review (only 1 is necessary in deployment for end
-users if we can accurately calculate the distribution exactly, which we probably can)
-Below N_TRIALS < 20, it is hard to see Gaussian features.
-At N_TRIALS = 200, Gaussian features should be somewhat visible.
-At N_TRIALS = 2000, Gaussian features should be very clear.
-At N_TRIALS = 20k, Gaussian features should be imperceptably
-different to human eye, or close to it.
+Feed into the script N reviews ( > 2 * N_PARAMS^2 ).
 
-For each trial, it splits the data into 2 random datasets of equal
-size, one for fitting, and one for testing.
+It will take the last N_TRIALS and use them for prediction testing
+and remove them from the review pool
 
-With the fitting data set, it will do a bunch of statistical jiggling
-on the data (hopefully accurately) and then estimate (hopefully
-accurately) the statistical fluctuations associated with the
-calculated FSRS parameters, and then (hoepfully accurately)
-propagates that statistical uncertainty through the interval
-calculation.  What you are left with is a prediction of an interval,
-as well as a stastical error boudns for it.
+It will then run N_TRIALS.
 
-Then, on the testing data set, it will do the standard calculation of
-FSRS parameters to calculate an interval for the calculated parameters.
+For each trial, the following occurs:
+    1) Choose a random review from the prediction testing pool and use
+    that as the test review for this trial.
 
-Then, a Z-score for how far apart the test value differs from the
-fitting value (divided by statistical uncertainty) is calculated.
+    2) Randomly evenly split the trials into one of two groups, a
+    fitting group, and a testing group.
 
-It does this N_TRIALS times, each time calculating a Z-score,
-building up an array of calculated Z-scores for each random splitting of the data.
+    3a) From the fitting group, calculate the FSRS parameters, and
+    also the statistical error associated with said parameters, then
+    propagate values and error to evaluate the test review for an
+    interval, as well as expected statistical uncertainty asosciated
+    with evaluation.
 
-Then, data is shown to the user showing how accurate the calculated
-Z-scores match that of a simulated perfect Gaussian distribution. 
-The perect Gaussian distribution samples N_TRIALS datapoints so it
-will have identical statistical fluctuations (but not inherent error)
-to the test data.
+    3b) From the testing group, calculate the FSRS paramters, and
+    then evaluate the test review for an interval.
 
-That is, the two distributions should look similar. And you should be
-able to turn N_TRIALS up to get clearer and clearer comparisons.
+    4) Calculate the Z-score for how far away the testing group's
+    calculated interval is from the fitting group's calculated
+    interval and calculated stasticial uncertainty. Save the Z-score
+    into an array for later calculations.
+
+After that, it will take the Z-score array, some data analysis is
+done to see how well it follows a Gaussian distribution.  If it does
+indeed follow a Gaussian distribution (at high numbers of trials,
+where it should be clearly obvious if it does or doesn't) then that
+means that we have succesfully found an algorithm to calculate the
+statsitical uncertainty associated with calculated an interval for a
+given review and a given fitting of FSRS parameters from other reviews.
+
+The data analysis on the Z-score, as well as visual data, is shown to
+the user.
+
+Additional data of a pure Gaussian sampling for the same number
+of samples as N_TRIALS is also shown to the user.
+
+If my hypothesis is correct, then the Z-score array should always be
+as Gaussian-y or better than the pure guassian sampling.
 
 ----------------
 
 As of right now, all data is semi-deterministic toy data so
-everything looks Gaussian no matter what you do.
+everything looks Gaussian no matter what you do, so no meaningful
+tests can be run aside from checking the validity of the program
+itself to avoid bugs and ensure smooth operation.
 
 
 ------------------
