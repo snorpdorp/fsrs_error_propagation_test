@@ -62,11 +62,11 @@ everything looks Gaussian no matter what you do.
 
 ------------------
 
-To execute (probably, not tested)
+To execute:
 
-    git clone <repo-url>
-    cd repo
-    python -m venv .venv
-    source .venv/bin/activate  # Windows: .venv\Scripts\activate
-    pip install -r requirements.txt
+    git clone git@github.com:snorpdorp/fsrs_statistical_uncertainty_propagation_test.git
+    cd fsrs_statistical_uncertainty_propagation_test/
+    python3 -m venv .venv
+    source .venv/bin/activate
+    python3 -m pip install -r requirements.txt
     ./statistical_uncertainty_propagation.py
