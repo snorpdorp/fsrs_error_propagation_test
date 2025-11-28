@@ -3,7 +3,6 @@
 # Small miniscript to show how to extrapolate statistical error through a
 # blackbox function for fsrs parameter calculation
 
-import random
 import numpy as np
 import itertools as it
 import uncertainties
@@ -21,7 +20,6 @@ N_TRIALS = 2000
 
 
 if DETERMINISTIC:
-    random.seed(1729)
     np.random.seed(1729)
 
 
