@@ -18,38 +18,39 @@ sparse where virtually all detectors have 0 events.
 
 Feed into the script N reviews ( > 2 * N_PARAMS^2 ).
 
-It will then run N_TRIALS.
+It will then begin running trials:
 
 For each trial, the following occurs:
-    1) Randomly split the reviews into 3 categories:
+    1) Randomly and equally split the reviews into 3 equal, distinct,
+        subsets:
         a) A Fitting group
-        b) A checking group (Equal size to fitting group, but with
-            distinct reviews)
-        c) A testing group (1 single card)
+        b) A Checking group
+        c) A Testing group
 
-    2a) From the fitting group, calculate the FSRS parameters, and
-    also the statistical error associated with said parameters, then
-    propagate values and error to evaluate the test review for an
-    interval, as well as expected statistical uncertainty asosciated
-    with evaluation.
+    2a) From the Fitting group, calculate the FSRS parameters, and
+    also the statistical error associated with said parameters
 
-    2b) From the testing group, calculate the FSRS paramters, and
-    then evaluate the test review for an interval.  (i.e. the way
-    it's always been done)
+    2b) From the Checking group, calculate the FSRS paramters
 
-    3) Calculate the Z-score for how far away the testing group's
-    calculated interval is from the fitting group's calculated
-    interval and calculated stasticial uncertainty. Save the Z-score
-    into an array for later calculations.
+    2c) For each of the test reviews in the Testing group, evaluate
+        a) the predicted interval from review from Fitting group's
+            FSRS params
+        b) the amount of statistical error associated with above
+        c) the predicted interval from review from Checking group's
+            FSRS params
+        d) A "Z-score" of (c - a) / b, i.e. how many sigmas away the
+        two values are.
 
-After that, it will take the Z-score array, and then some data
+    3) Save Z-scores from previous step for later statistical analysis.
+
+After running the trials, it will take the Z-score array, and then some data
 analysis is done to see how well it follows a Gaussian distribution. 
 If it does indeed follow a Gaussian distribution (at high numbers of
 trials, where it should be clearly obvious if it does or doesn't)
 then that means that we have succesfully found an algorithm to
-calculate the statsitical uncertainty associated with calculated an
-interval for a given review and a given fitting of FSRS parameters
-from other reviews.
+calculate the statsitical uncertainty associated with calculating an
+interval for a given review from the data used to fit the FSRS
+parameters and doing the review.
 
 The data analysis on the Z-score, as well as visual data, is shown to
 the user.
