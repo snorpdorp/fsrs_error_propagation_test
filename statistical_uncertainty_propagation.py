@@ -8,24 +8,26 @@ import itertools as it
 import uncertainties
 import matplotlib.pyplot as plt
 from scipy.stats import norm, kstest, shapiro, probplot, chi2
-from fsrs import ReviewLog, Optimizer
+from fsrs import ReviewLog, Optimizer, Scheduler
 import random
+import time
+from math import inf
 
 
 CONSTANT_SEED = False
 NUM_FITTED_PARAMS = 21
-N_TRIALS = 5000
+N_MEASUREMENTS = 1000000
 # 200 trials is enough to see the gaussian curve, albeit very messily
 # 2000 trials is neough to see gaussian curve cleanly, albeit imperfectly
 # 20000 is statistician's dream -- human eye to differentiate from theoretical gaussian curve becomes difficult
 
 JIGGLES = 4
-
 # DISTRIBUTION = "Poisson"
 DISTRIBUTION = "Binomial"
 
-# Runtime is O(NMP) where N and M and P are N_TRIALS and BINOM_JIGGLES and the number of reviews
-# In actual deployment, after model is proven accurate, just O(MP)
+# Runtime is O(NM) where N and M N_MEASUREMENTS and M is JIGGLES
+# In actual deployment, after model is proven accurate, just O(M), as
+# only 1 measurement is necessary once model is proven
 
 
 if CONSTANT_SEED:
@@ -33,56 +35,41 @@ if CONSTANT_SEED:
     random.seed(1729)
 
 
-def jiggle_reviews(data, n_jiggles):
+def jiggle_reviews(reviews):
     # Assumes a sparse matrix of radiation detectors each with either zero or a single detection event
     # Might be beneficial to bin the dectors and then have integerial number of detections in each bin...
     # Will try that if first approach fails and/or binning is easily done.
-    # For starters, each detector in its own bin
-    for i in range(n_jiggles):
-        if DISTRIBUTION == "Binomial":  # Faster, probably slightly more accurate
-            values = np.random.binomial(n=1, p=0.5, size=len(data)) * 2  # * 2 does make variance math accurate but probably unncessary
-        elif DISTRIBUTION == "Poisson":  # Easier to do math with, Binom converges to Poisson at high number of measurements
-            values = np.random.poisson(lam=1, size=len(data))
-        else:
-            raise ValueError(f"DISTRIBUTION must be 'Binomial' or 'Poisson', not {DISTRIBUTION}")
-        yield list(it.chain.from_iterable((datum, ) * num_detections for datum, num_detections in zip(data, values)))
-        # yielded list is approx same length as len(data), but with various events duplicated and/or omitted, randomly
-
-
-def fsrs_params_with_error(reviews) -> list[uncertainties.ufloat]:
-    assert len(reviews) > NUM_FITTED_PARAMS**2  # This number is probably too big, but we avoid errors!
-    assert JIGGLES >= 2  #  Can't propagate statistical variation from 1 run, also bessel correction div-by-zero
-    statistically_jiggled_datasets = jiggle_reviews(reviews, n_jiggles=JIGGLES)
-    # No idea if above is enough or too many samples, but will probably work.
-    # Also, no idea what shape matrix is most efficient...
-    # most_accurate_mu_calculation = calculate_fsrs_params(reviews)  # uses all fitting data
-    jiggled_parameters = [fit_fsrs_params(dataset) for dataset in statistically_jiggled_datasets]
-
-    # Below assumes correlated gaussian distribution. I bet it will be one. We need to test that though.
-    means = np.mean(jiggled_parameters, axis=0)
-    cov = np.cov(jiggled_parameters, rowvar=False)
-    # Bessel correction for sampling bias
-    cov *= ((JIGGLES / (JIGGLES - 1))) ** 4
-    params_with_uncertainty = uncertainties.correlated_values(means, cov)
-    return params_with_uncertainty
+    # For starters, each detection is in its own bin
+    if DISTRIBUTION == "Binomial":  # Faster, probably slightly more accurate
+        values = np.random.binomial(n=1, p=0.5, size=len(reviews)) * 2  # * 2 does make variance math accurate but probably unncessary
+    elif DISTRIBUTION == "Poisson":  # Easier to do math with, Binom converges to Poisson at high number of measurements
+        values = np.random.poisson(lam=1, size=len(reviews))
+    else:
+        raise ValueError(f"DISTRIBUTION must be 'Binomial' or 'Poisson', not {DISTRIBUTION}")
+    return list(it.chain.from_iterable((datum, ) * num_detections for datum, num_detections in zip(reviews, values)))
+    # yielded list is approx same length as len(reviews), but with various events duplicated and/or omitted, randomly
 
 
 def fit_fsrs_params(reviews):
-    """Calculate fitted FSRS parameters from reviews"""
-    # Currently just toy data
-    return np.random.normal(loc=0.0, scale=1.0, size=NUM_FITTED_PARAMS)
+    """Actually returns a Scheduler object with fitted params"""
+    optimizer = Optimizer(reviews)
+    params = optimizer.compute_optimal_parameters()
+    scheduler = Scheduler(optimal_parameters, enable_fuzzing=False)
 
 
 def get_reviews_somewhere():
     """Get list of reviews for testing. Ideally from experimental measurements from a single deck of a single user."""
     # Currently just toy data
-    return list(range(5000))
+    return np.random.normal(loc=0.0, scale=1.0, size=5000)
 
 
-def calculate_interval(review, fsrs_params):
-    """Calculate the interval of a given review with the given fsrs parameters"""
-    # Currently just toy data
-    return sum(fsrs_params)
+def calculate_intervals(reviews, scheduler):
+    """Calculate the interval of given reviews with given scheduler"""
+    intervals = []
+    for review in reviews:
+        next_state, updated_card = scheduelr.review(, review_log)
+    fsrs_random = np.mean(fsrs_params) + np.array(reviews)
+    return fsrs_random + reviews
 
 
 def evaluate_and_compare(real_data):
@@ -182,27 +169,47 @@ def evaluate_and_compare(real_data):
     plt.show()
 
 
+def display_occasionally(time_to_pause, msg):
+    global last_display_time
+    now = time.time()
+    try:
+        last_display_time
+    except NameError:
+        last_display_time = -inf
+    if now > last_display_time + time_to_pause:
+        print(msg)
+        last_display_time = now
+
+
 def main():
     reviews = get_reviews_somewhere()
     assert len(reviews) > 3
     z_scores = []
-    for i in range(N_TRIALS):
-        print(f"Running trial {i}")
+    while len(z_scores) < N_MEASUREMENTS:
+        pct_complete = len(z_scores) / N_MEASUREMENTS * 100
+        display_occasionally(3, f"Running trials {pct_complete:-.2f}% done")
 
         # Randomly assign fitting, checking, test review
         random.shuffle(reviews)
-        halfway_split = (len(reviews)-1)//2  # 3, 4 -> 1
-        fitting_reviews = reviews[:halfway_split]
-        checking_reviews = reviews[halfway_split:2*halfway_split]  # to either 2nd- or 3rd-to-alst
-        test_review = reviews[-1]
+        size = len(reviews)//3
+        fitting_reviews = reviews[:size]
+        checking_reviews = reviews[size:2*size]
+        test_reviews = reviews[-size:]
 
-        fitted_params = fsrs_params_with_error(fitting_reviews)
-        checking_params = fit_fsrs_params(checking_reviews)
+        jiggled_reviews = [jiggle_reviews(fitting_reviews) for _ in range(JIGGLES)]
 
-        fitted_interval = calculate_interval(test_review, fitted_params)
-        checking_interval = calculate_interval(test_review, checking_params)
+        jiggled_schedulers = [fit_fsrs_params(reviews) for reviews in jiggled_reviews]
+        checking_scheduler = fit_fsrs_params(checking_reviews)
 
-        z_scores.append((checking_interval - fitted_interval.n)/fitted_interval.s)
+        jiggled_intervals = [calculate_intervals(test_reviews, params) for params in  jiggled_params]
+        checking_intervals = calculate_intervals(test_reviews, checking_params)
+
+        fitted_intervals_n = np.mean(jiggled_intervals, axis=0)
+        fitted_intervals_s = np.std(jiggled_intervals, axis=0, ddof=1)
+
+        z_scores.extend([(checking_interval - fitted_interval_n)/fitted_interval_s
+                         for checking_interval, fitted_interval_n, fitted_interval_s
+                         in zip(checking_intervals, fitted_intervals_n, fitted_intervals_s)])
 
     evaluate_and_compare(z_scores)
 
