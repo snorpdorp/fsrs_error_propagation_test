@@ -12,6 +12,7 @@ from fsrs import ReviewLog, Optimizer, Scheduler
 import random
 import time
 from math import inf
+import pandas as pd
 
 
 CONSTANT_SEED = False
@@ -55,21 +56,25 @@ def fit_fsrs_params(reviews):
     optimizer = Optimizer(reviews)
     params = optimizer.compute_optimal_parameters()
     scheduler = Scheduler(optimal_parameters, enable_fuzzing=False)
+    return scheduler
 
 
-def get_reviews_somewhere():
+def get_reviews():
     """Get list of reviews for testing. Ideally from experimental measurements from a single deck of a single user."""
-    # Currently just toy data
+    revlogs = pd.read_parquet("user_data/revlogs/user_id=1/data.parquet")
+    cards = pd.read_parquet("user_data/cards/user_id=1/data.parquet")
+    # Do something, return card/reviewlog tuples
     return np.random.normal(loc=0.0, scale=1.0, size=5000)
 
 
 def calculate_intervals(reviews, scheduler):
     """Calculate the interval of given reviews with given scheduler"""
     intervals = []
-    for review in reviews:
-        next_state, updated_card = scheduelr.review(, review_log)
-    fsrs_random = np.mean(fsrs_params) + np.array(reviews)
-    return fsrs_random + reviews
+    for card, review_log in reviews:
+        next_state, updated_card = scheduler.review(card, review_log)
+        next_interval = next_state.interval
+        intervals.append(next_interval)
+    return intervals
 
 
 def evaluate_and_compare(real_data):
@@ -182,7 +187,7 @@ def display_occasionally(time_to_pause, msg):
 
 
 def main():
-    reviews = get_reviews_somewhere()
+    reviews = get_reviews()
     assert len(reviews) > 3
     z_scores = []
     while len(z_scores) < N_MEASUREMENTS:
