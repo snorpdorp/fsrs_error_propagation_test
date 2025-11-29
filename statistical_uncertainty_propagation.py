@@ -14,15 +14,42 @@ import random
 
 DETERMINISTIC = False
 NUM_FITTED_PARAMS = 21
-N_TRIALS = 200
+N_TRIALS = 20000
 # 200 trials is enough to see the gaussian curve, albeit very messily
 # 2000 trials is neough to see gaussian curve cleanly, albeit imperfectly
 # 20000 is statistician's dream -- human eye to differentiate from theoretical gaussian curve becomes difficult
 
-POISSON_JIGGLES = 100
-# 20--Forms a gaussian but sigma is slightly bigger... 21/20 sigma and then height lowered equivalently? I'm sure the exact formula is in a stats text
-# 40--it's clearly not a perfect gaussian match but probably good enough for deployment
-# 100 is perhaps overkill, but I cannot distinguish from perfect gaussian match within statistical fluctuations
+POISSON_JIGGLES = 20
+# TO DO: Currently Bessel correction is inaccurate leading to SLIGHT underestimation of statistical uncertainty at low POISSON_JIGGLES
+# For now, can use 100 jiggles for clean data, prob has <1% error, hard to visually see.
+
+# With Bessel correction of 1: 
+# At 5 jiggles, error of error sigma was 1.22
+# At 3 jiggles, error of error sigma was 2.23 sigma
+# At 2 jiggles, error of error sigma was 307 sigma (!!!)
+# I bet it's a Bessel Correction of -2 for whatever reason...
+# That and/or we need to use a Binomial and not Poisson distribution...
+
+# With Bessel correction of 2
+# With 3 jiggles, error of error sigma was 1.41
+# With 5 jiggles, error of error sigma was 0.92 (??? less than 1 with 4-sigma confidence...)
+# Definitely way better at 2 jiggles, but crossing over 1... I think Bessel correction of 1 + additional source of error is probably most correct
+
+# Bessel correction of 2 is def. incorrect.
+# Bessel correction of 1 is highly plausible.
+
+# Once correct formula for Bessel correction is found, probably 20 jiggles will be fine in deployment
+
+# There is some additional source of statistical error that is not
+# accounted for. It is negligible at higher numbers of jiggles. At 5 jiggles it is ~20% of the error.
+# At 20 jiggles it is 
+
+# Higher number of jiggles reduces amoutn of statsitical uncertainty
+# of the statistical uncertainty of the interval calculation. (i.e.
+# the error of the error)
+
+# 20 is probably a good number for deployment, ~5% error associated
+# with error correction, and the ultimate chosen value is arbitrary anyway
 
 # Runtime is O(NMP) where N and M and P are N_TRIALS and POISSON_JIGGLES and the number of reviews
 # In actual deployment, after model is proven accurate, just O(MP)
@@ -58,7 +85,8 @@ def poisson_randomization(data, n_samples):
 
 
 def fsrs_params_with_error(reviews) -> list[uncertainties.ufloat]:
-    assert len(reviews) > NUM_FITTED_PARAMS**2  # This number is probably wrong but will probably work.
+    assert len(reviews) > NUM_FITTED_PARAMS**2  # This number is probably too big, but we avoid errors!
+    assert POISSON_JIGGLES > 1  # Need >2 to avoid divide-by-zero errors in Bessel correction
     statistically_jiggled_datasets = poisson_randomization(reviews, n_samples=POISSON_JIGGLES)
     # No idea if above is enough or too many samples, but will probably work.
     # Also, no idea what shape matrix is most efficient...
@@ -68,6 +96,8 @@ def fsrs_params_with_error(reviews) -> list[uncertainties.ufloat]:
     # Below assumes correlated gaussian distribution. I bet it will be one. We need to test that though.
     means = np.mean(jiggled_parameters, axis=0)
     cov = np.cov(jiggled_parameters, rowvar=False)
+    # Bessel correction for sampling bias
+    cov *= (POISSON_JIGGLES / (POISSON_JIGGLES - 1))**2
     params_with_uncertainty = uncertainties.correlated_values(means, cov)
     return params_with_uncertainty
 
